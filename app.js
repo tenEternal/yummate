@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fridgeSection.classList.add('hidden');
             fridgeToggleBtn.classList.remove('active');
         }
+        resultCard.classList.add('hidden');
     });
     const tagsInputWrapper = document.getElementById('tagsInputWrapper');
 
