@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>일주일 식단표 - 오늘 뭐 먹지?</title>
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="weekly-page">
+    <div class="background-animation"></div>
+
+    <div class="weekly-container">
+        <header class="weekly-header">
+            <div>
+                <h1>일주일 식단표</h1>
+                <p id="weeklySubTitle" class="weekly-subtitle">선택한 조건에 맞춰 식단을 생성합니다.</p>
+            </div>
+            <div class="weekly-header-actions">
+                <button id="refreshWeeklyBtn" class="weekly-btn small-btn">🔄 다시 생성</button>
+                <button id="weeklyFridgeToggleBtn" class="fridge-toggle-btn small-btn" style="white-space:nowrap;">냉장고 털기 🧊</button>
+                <button id="printWeeklyBtn" class="back-btn">🖨 인쇄</button>
+                <button onclick="window.location.href='index.html'" class="back-btn">⬅ 뒤로가기</button>
+            </div>
+        </header>
+
+        <!-- 냉장고 털기 패널 -->
+        <div class="fridge-section hidden" id="weeklyFridgeSection">
+            <p>냉장고 재료를 입력하면, 해당 재료가 포함된 음식을 우선으로 식단표를 다시 작성합니다!</p>
+            <div class="fridge-input-group">
+                <div class="tags-input-wrapper" id="weeklyTagsInputWrapper">
+                    <div id="weeklyTagsContainer" class="tags-container"></div>
+                    <div class="input-relative-wrapper">
+                        <input type="text" id="weeklyFridgeInput" placeholder="재료 검색 (예: 양파)" autocomplete="off">
+                        <ul id="weeklyIngredientSuggestions" class="suggestions-list hidden"></ul>
+                    </div>
+                </div>
+                <button id="weeklyFridgeBtn" class="fridge-btn">식단 적용</button>
+            </div>
+        </div>
+
+        <main class="weekly-main">
+            <section class="weekly-table-wrap">
+                <table class="weekly-table-full">
+                    <thead>
+                        <tr>
+                            <th>구분</th>
+                            <th>일요일</th>
+                            <th>월요일</th>
+                            <th>화요일</th>
+                            <th>수요일</th>
+                            <th>목요일</th>
+                            <th>금요일</th>
+                            <th>토요일</th>
+                        </tr>
+                    </thead>
+                    <tbody id="weeklyTableBody">
+                        <!-- JS generated -->
+                    </tbody>
+                </table>
+            </section>
+
+            <aside class="shopping-list-card">
+                <h2>장보기 목록</h2>
+                <p>생성된 식단의 재료를 자동으로 모았습니다.</p>
+                <ul id="shoppingList"></ul>
+            </aside>
+        </main>
+    </div>
+
+    <!-- 음식 상세 모달 -->
+    <div class="food-modal-overlay hidden" id="foodModalOverlay">
+        <div class="food-modal" id="foodModal">
+            <button class="food-modal-close" id="foodModalClose">&times;</button>
+            <div class="food-modal-header">
+                <span class="category-badge" id="modalCategory"></span>
+                <h2 class="food-modal-title" id="modalName"></h2>
+                <div class="food-modal-tags" id="modalTags"></div>
+            </div>
+            <div class="food-modal-body">
+                <section class="food-modal-section">
+                    <h3>🥕 재료</h3>
+                    <div class="food-modal-ingredients" id="modalIngredients"></div>
+                </section>
+                <section class="food-modal-section">
+                    <h3>📋 레시피</h3>
+                    <div class="food-modal-recipe" id="modalRecipe"></div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <!-- 데이터 파일 로드 -->
+    <script src="data.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const category = urlParams.get('category') || 'all';
+            const tbody = document.getElementById('weeklyTableBody');
+            const shoppingList = document.getElementById('shoppingList');
+            const refreshWeeklyBtn = document.getElementById('refreshWeeklyBtn');
+            const printWeeklyBtn = document.getElementById('printWeeklyBtn');
+            const weeklySubTitle = document.getElementById('weeklySubTitle');
+
+            const meals = ['아침', '점심', '저녁'];
+            const mealClasses = ['meal-breakfast', 'meal-lunch', 'meal-dinner'];
+            const days = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+            const isKoreanPlan = category === '한식';
+
+            const baseData = category === 'all'
+                ? foodData
+                : foodData.filter(item => item.카테고리 === category);
+
+            // 음식 이름 → 데이터 빠른 조회용 맵
+            const foodMap = new Map(foodData.map(f => [f.음식, f]));
+
+            const defaultSubTitle = category === 'all'
+                ? '전체 카테고리 기준으로 식단을 생성했습니다.'
+                : isKoreanPlan
+                    ? '한식 기준으로 메인반찬 + 밑반찬 + 국/탕 또는 찌개가 포함되도록 식단을 생성했습니다.'
+                    : `${category} 카테고리 기준으로 식단을 생성했습니다.`;
+
+            weeklySubTitle.textContent = defaultSubTitle;
+
+            // ── 단독 배치 제외 음식구분 ──────────────────────────────────────
+            // 밑반찬·김치류는 세트의 보조 반찬이므로 단독 메인으로 배치하지 않음
+            const STANDALONE_EXCLUDED = ['밑반찬', '김치/젓갈/장'];
+
+            // ── 후보 선택 헬퍼 ──────────────────────────────────────────────
+
+            function getMealCandidates(mealName) {
+                const matched = baseData.filter(item =>
+                    Array.isArray(item.식사구분) &&
+                    item.식사구분.includes(mealName) &&
+                    !STANDALONE_EXCLUDED.includes(item.음식구분)
+                );
+                if (matched.length > 0) return matched;
+                // 폴백: 단독 제외 음식구분만 거르고 전체 반환
+                return baseData.filter(item => !STANDALONE_EXCLUDED.includes(item.음식구분));
+            }
+
+            function getKoreanCandidates(mealName, foodType) {
+                const matched = foodData.filter(item =>
+                    item.카테고리 === '한식' &&
+                    item.음식구분 === foodType &&
+                    Array.isArray(item.식사구분) && item.식사구분.includes(mealName)
+                );
+                if (matched.length > 0) return matched;
+                return foodData.filter(item => item.카테고리 === '한식' && item.음식구분 === foodType);
+            }
+
+            // 재료 일치 여부
+            function hasMatchingIngredient(food, fridgeIngredients) {
+                if (!fridgeIngredients || fridgeIngredients.length === 0) return false;
+                const foodIngs = food.재료 ? food.재료.split(',').map(i => i.trim()) : [];
+                return fridgeIngredients.some(fIng => foodIngs.some(fi => fi.includes(fIng)));
+            }
+
+            // 음식 선택 (냉장고 재료 우선)
+            function pickFood(candidates, usedFoods, previousFoodName, fridgeIngredients) {
+                if (fridgeIngredients && fridgeIngredients.length > 0) {
+                    const fridgePool = candidates.filter(item =>
+                        hasMatchingIngredient(item, fridgeIngredients) &&
+                        !usedFoods.has(item.음식) &&
+                        item.음식 !== previousFoodName
+                    );
+                    if (fridgePool.length > 0) {
+                        const selected = fridgePool[Math.floor(Math.random() * fridgePool.length)];
+                        usedFoods.add(selected.음식);
+                        return selected;
+                    }
+                }
+                let pool = candidates.filter(item => !usedFoods.has(item.음식) && item.음식 !== previousFoodName);
+                if (pool.length === 0) pool = candidates.filter(item => item.음식 !== previousFoodName);
+                if (pool.length === 0) pool = candidates;
+                const selected = pool[Math.floor(Math.random() * pool.length)];
+                usedFoods.add(selected.음식);
+                return selected;
+            }
+
+            // ── 쇼핑리스트 ──────────────────────────────────────────────────
+
+            function splitIngredients(text) {
+                return text.split(',').map(i => i.trim()).filter(Boolean);
+            }
+
+            function makeShoppingList(selectedFoods, fridgeIngredients) {
+                const ingredientMap = new Map();
+                selectedFoods.forEach(food => {
+                    splitIngredients(food.재료 || '').forEach(ingredient => {
+                        ingredientMap.set(ingredient, (ingredientMap.get(ingredient) || 0) + 1);
+                    });
+                });
+                const sorted = [...ingredientMap.entries()]
+                    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko'));
+                const fridgeSet = new Set(fridgeIngredients || []);
+                shoppingList.innerHTML = sorted.map(([ingredient, count]) => {
+                    const isFridge = fridgeSet.size > 0 && [...fridgeSet].some(fi => ingredient.includes(fi));
+                    const style = isFridge ? 'style="color:#4ade80;" title="냉장고에 있는 재료"' : '';
+                    return `<li><span ${style}>${ingredient}${isFridge ? ' ✓' : ''}</span><strong>${count}회</strong></li>`;
+                }).join('');
+            }
+
+            // ── HTML 렌더 ────────────────────────────────────────────────────
+
+            // 음식구분별 뱃지 색상 클래스
+            const DISH_TYPE_CLASS = {
+                '국/탕':       'dtb-soup',
+                '찌개':        'dtb-jjigae',
+                '메인반찬':    'dtb-main',
+                '밑반찬':      'dtb-side',
+                '김치/젓갈/장':'dtb-kimchi',
+                '간단식':      'dtb-simple',
+                '면/만두':     'dtb-noodle',
+            };
+
+            // 한식 세트 내 음식구분 표시 순서
+            const SORT_ORDER = ['국/탕', '찌개', '메인반찬', '밑반찬', '김치/젓갈/장'];
+
+            function makeFoodBtn(food, fridgeIngredients, showBadge) {
+                const isFridge = hasMatchingIngredient(food, fridgeIngredients);
+                const borderStyle = isFridge ? ' style="border-left:3px solid #4ade80;padding-left:5px;"' : '';
+                const badge = showBadge && food.음식구분
+                    ? `<span class="dtb ${DISH_TYPE_CLASS[food.음식구분] || 'dtb-main'}">${food.음식구분}</span>`
+                    : '';
+                return `<button class="meal-food-btn" data-food="${encodeURIComponent(food.음식)}"${borderStyle}>${badge}${food.음식}</button>`;
+            }
+
+            // 일반 음식 단일 셀
+            function getFoodDetailHtml(food, fridgeIngredients) {
+                return makeFoodBtn(food, fridgeIngredients, false);
+            }
+
+            // 한식 세트: 국/탕·찌개 → 메인반찬 → 밑반찬 순으로 정렬해서 표시
+            function getKoreanSetHtml(foodSet, fridgeIngredients) {
+                const sorted = [...foodSet].sort((a, b) => {
+                    const ai = SORT_ORDER.indexOf(a.음식구분);
+                    const bi = SORT_ORDER.indexOf(b.음식구분);
+                    return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+                });
+                return `<div class="korean-set">${sorted.map(food => makeFoodBtn(food, fridgeIngredients, true)).join('')}</div>`;
+            }
+
+            // ── 한식 세트 선택 ───────────────────────────────────────────────
+
+            function pickKoreanMealSet(mealName, usedFoods, previousByType, fridgeIngredients) {
+                const main = pickFood(getKoreanCandidates(mealName, '메인반찬'), usedFoods, previousByType['메인반찬'], fridgeIngredients);
+                previousByType['메인반찬'] = main.음식;
+
+                const side = pickFood(getKoreanCandidates(mealName, '밑반찬'), usedFoods, previousByType['밑반찬'], fridgeIngredients);
+                previousByType['밑반찬'] = side.음식;
+
+                const soupType = previousByType.lastSoupType === '국/탕' ? '찌개' : '국/탕';
+                const soup = pickFood(getKoreanCandidates(mealName, soupType), usedFoods, previousByType[soupType], fridgeIngredients);
+                previousByType[soupType] = soup.음식;
+                previousByType.lastSoupType = soupType;
+
+                return [main, side, soup];
+            }
+
+            // ── 식단 생성 ────────────────────────────────────────────────────
+
+            function generateWeeklyPlan(fridgeIngredients) {
+                if (baseData.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8">데이터가 없습니다.</td></tr>';
+                    shoppingList.innerHTML = '<li>장보기 목록을 생성할 수 없습니다.</li>';
+                    return;
+                }
+
+                const selectedFoods = [];
+                const usedFoods = new Set();
+                const previousByMeal = {};
+                const previousKoreanByMeal = {};
+                let html = '';
+
+                for (let i = 0; i < meals.length; i++) {
+                    const mealName = meals[i];
+                    const candidates = getMealCandidates(mealName);
+                    html += `<tr>`;
+                    html += `<td><span class="meal-badge ${mealClasses[i]}">${mealName}</span></td>`;
+
+                    for (let day = 0; day < days.length; day++) {
+                        if (isKoreanPlan) {
+                            previousKoreanByMeal[mealName] = previousKoreanByMeal[mealName] || {};
+                            const foodSet = pickKoreanMealSet(mealName, usedFoods, previousKoreanByMeal[mealName], fridgeIngredients);
+                            selectedFoods.push(...foodSet);
+                            html += `<td data-day="${days[day]}" data-meal="${mealName}">${getKoreanSetHtml(foodSet, fridgeIngredients)}</td>`;
+                        } else {
+                            const selectedFood = pickFood(candidates, usedFoods, previousByMeal[mealName], fridgeIngredients);
+                            previousByMeal[mealName] = selectedFood.음식;
+                            selectedFoods.push(selectedFood);
+                            html += `<td data-day="${days[day]}" data-meal="${mealName}">${getFoodDetailHtml(selectedFood, fridgeIngredients)}</td>`;
+                        }
+                    }
+                    html += `</tr>`;
+                }
+
+                tbody.innerHTML = html;
+                makeShoppingList(selectedFoods, fridgeIngredients);
+            }
+
+            // ── 모달 ─────────────────────────────────────────────────────────
+
+            const modalOverlay     = document.getElementById('foodModalOverlay');
+            const modalClose       = document.getElementById('foodModalClose');
+            const modalCategory    = document.getElementById('modalCategory');
+            const modalName        = document.getElementById('modalName');
+            const modalTags        = document.getElementById('modalTags');
+            const modalIngredients = document.getElementById('modalIngredients');
+            const modalRecipe      = document.getElementById('modalRecipe');
+
+            function openFoodModal(foodName) {
+                const food = foodMap.get(foodName);
+                if (!food) return;
+
+                modalCategory.textContent = food.카테고리;
+                modalName.textContent = food.음식;
+
+                const tags = [];
+                if (food.음식구분) tags.push({ label: food.음식구분, color: 'tag-type' });
+                if (food.영양분류) tags.push({ label: food.영양분류, color: 'tag-nutrition' });
+                if (food.조리방식) tags.push({ label: food.조리방식, color: 'tag-cook' });
+                if (food.조리시간) tags.push({ label: '⏱ ' + food.조리시간, color: 'tag-time' });
+                if (food.알레르기 && food.알레르기 !== '없음')
+                    tags.push({ label: '⚠ ' + food.알레르기, color: 'tag-allergy' });
+                modalTags.innerHTML = tags.map(t => `<span class="modal-tag ${t.color}">${t.label}</span>`).join('');
+
+                const ings = food.재료 ? food.재료.split(',').map(i => i.trim()).filter(Boolean) : [];
+                modalIngredients.innerHTML = ings.length
+                    ? ings.map(i => `<span class="ingredient-chip">${i}</span>`).join('')
+                    : '<span class="modal-empty">재료 정보가 없습니다.</span>';
+
+                if (food.레시피 && food.레시피.trim && food.레시피.trim()) {
+                    if (Array.isArray(food.레시피)) {
+                        modalRecipe.innerHTML = `<ol class="recipe-steps">${food.레시피.map(step => `<li>${step}</li>`).join('')}</ol>`;
+                    } else {
+                        modalRecipe.innerHTML = `<p class="recipe-text">${food.레시피.replace(/\n/g, '<br>')}</p>`;
+                    }
+                } else {
+                    modalRecipe.innerHTML = `<div class="recipe-pending">
+                        <span class="recipe-pending-icon">🍳</span>
+                        <p>레시피가 아직 등록되지 않았습니다.</p>
+                        <small>곧 업데이트될 예정이에요!</small>
+                    </div>`;
+                }
+
+                modalOverlay.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+            }
+
+            function closeModal() {
+                modalOverlay.classList.add('hidden');
+                document.body.style.overflow = '';
+            }
+
+            modalClose.addEventListener('click', closeModal);
+            modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+            tbody.addEventListener('click', (e) => {
+                const btn = e.target.closest('.meal-food-btn');
+                if (btn) openFoodModal(decodeURIComponent(btn.dataset.food));
+            });
+
+            // ── 버튼 이벤트 ─────────────────────────────────────────────────
+
+            refreshWeeklyBtn.addEventListener('click', () => {
+                generateWeeklyPlan(weeklySelectedIngredients.length > 0 ? weeklySelectedIngredients : null);
+            });
+
+            printWeeklyBtn.addEventListener('click', () => window.print());
+            generateWeeklyPlan(null);
+
+            // ========== 냉장고 털기 기능 ==========
+
+            const weeklyFridgeToggleBtn  = document.getElementById('weeklyFridgeToggleBtn');
+            const weeklyFridgeSection    = document.getElementById('weeklyFridgeSection');
+            const weeklyFridgeBtn        = document.getElementById('weeklyFridgeBtn');
+            const weeklyFridgeInput      = document.getElementById('weeklyFridgeInput');
+            const weeklyIngredientSuggestions = document.getElementById('weeklyIngredientSuggestions');
+            const weeklyTagsContainer    = document.getElementById('weeklyTagsContainer');
+            const weeklyTagsInputWrapper = document.getElementById('weeklyTagsInputWrapper');
+
+            let weeklySelectedIngredients = [];
+
+            const weeklyAllIngredientsSet = new Set();
+            foodData.forEach(food => {
+                if (food.재료) food.재료.split(',').forEach(ing => weeklyAllIngredientsSet.add(ing.trim()));
+            });
+            const weeklyAllIngredients = Array.from(weeklyAllIngredientsSet).filter(Boolean)
+                .sort((a, b) => a.localeCompare(b, 'ko'));
+
+            function weeklyRenderTags() {
+                weeklyTagsContainer.innerHTML = weeklySelectedIngredients.map((ing, idx) => `
+                    <div class="tag-item">
+                        ${ing}
+                        <button type="button" class="tag-remove" data-idx="${idx}">&times;</button>
+                    </div>
+                `).join('');
+            }
+
+            function weeklyAddIngredient(ing) {
+                let trimmed = ing.trim().replace(/달걀/g, '계란');
+                if (!trimmed) return;
+                if (!weeklySelectedIngredients.includes(trimmed)) {
+                    weeklySelectedIngredients.push(trimmed);
+                    weeklyRenderTags();
+                }
+                weeklyFridgeInput.value = '';
+                weeklyIngredientSuggestions.classList.add('hidden');
+            }
+
+            weeklyFridgeToggleBtn.addEventListener('click', () => {
+                const isHidden = weeklyFridgeSection.classList.contains('hidden');
+                if (isHidden) {
+                    weeklyFridgeSection.classList.remove('hidden');
+                    weeklyFridgeToggleBtn.classList.add('active');
+                    weeklyFridgeInput.focus();
+                } else {
+                    weeklyFridgeSection.classList.add('hidden');
+                    weeklyFridgeToggleBtn.classList.remove('active');
+                }
+            });
+
+            weeklyTagsContainer.addEventListener('click', (e) => {
+                if (e.target.classList.contains('tag-remove')) {
+                    weeklySelectedIngredients.splice(parseInt(e.target.dataset.idx), 1);
+                    weeklyRenderTags();
+                }
+            });
+
+            weeklyFridgeInput.addEventListener('input', (e) => {
+                const val = e.target.value.trim();
+                if (!val) { weeklyIngredientSuggestions.classList.add('hidden'); return; }
+                const searchVal = val.replace(/달걀/g, '계란');
+                const matches = weeklyAllIngredients.filter(ing =>
+                    ing.includes(searchVal) && !weeklySelectedIngredients.includes(ing)
+                );
+                if (matches.length > 0) {
+                    weeklyIngredientSuggestions.innerHTML = matches.map(m => `<li>${m}</li>`).join('');
+                    weeklyIngredientSuggestions.classList.remove('hidden');
+                } else {
+                    weeklyIngredientSuggestions.classList.add('hidden');
+                }
+            });
+
+            weeklyIngredientSuggestions.addEventListener('click', (e) => {
+                if (e.target.tagName === 'LI') {
+                    weeklyAddIngredient(e.target.textContent);
+                    weeklyFridgeInput.focus();
+                }
+            });
+
+            weeklyFridgeInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (!weeklyIngredientSuggestions.classList.contains('hidden') && weeklyIngredientSuggestions.querySelector('li')) {
+                        weeklyAddIngredient(weeklyIngredientSuggestions.querySelector('li').textContent);
+                    } else if (weeklyFridgeInput.value.trim()) {
+                        weeklyAddIngredient(weeklyFridgeInput.value);
+                    } else {
+                        weeklyFridgeBtn.click();
+                    }
+                } else if (e.key === 'Backspace' && weeklyFridgeInput.value === '') {
+                    if (weeklySelectedIngredients.length > 0) {
+                        weeklySelectedIngredients.pop();
+                        weeklyRenderTags();
+                    }
+                }
+            });
+
+            weeklyTagsInputWrapper.addEventListener('click', (e) => {
+                if (e.target === weeklyTagsInputWrapper || e.target === weeklyTagsContainer) {
+                    weeklyFridgeInput.focus();
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('#weeklyTagsInputWrapper')) {
+                    weeklyIngredientSuggestions.classList.add('hidden');
+                }
+            });
+
+            weeklyFridgeBtn.addEventListener('click', () => {
+                if (weeklyFridgeInput.value.trim()) weeklyAddIngredient(weeklyFridgeInput.value);
+                if (weeklySelectedIngredients.length === 0) {
+                    alert('냉장고에 있는 재료를 입력해주세요. (예: 양파)');
+                    return;
+                }
+                weeklyIngredientSuggestions.classList.add('hidden');
+                weeklySubTitle.textContent = `🧊 냉장고 재료 우선 반영: ${weeklySelectedIngredients.join(', ')}`;
+                generateWeeklyPlan(weeklySelectedIngredients);
+                weeklyFridgeSection.classList.add('hidden');
+                weeklyFridgeToggleBtn.classList.remove('active');
+            });
+        });
+    </script>
+</body>
+</html>

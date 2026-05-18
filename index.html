@@ -5,7 +5,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>오늘 뭐 먹지? - 프리미엄 식단 추천</title>
-    <!-- 폰트 적용 (Pretendard) -->
     <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
     <link rel="stylesheet" href="style.css">
@@ -26,19 +25,36 @@
                     <button class="filter-btn active" data-category="all">전체</button>
                     <!-- JavaScript로 카테고리 버튼이 동적 생성됩니다 -->
                 </div>
-                <button id="recommendBtn" class="recommend-btn">메뉴 추천받기 🎲</button>
+
+                <div class="action-buttons">
+                    <button id="recommendBtn" class="recommend-btn">메뉴 추천 🎲</button>
+                    <button id="seasonalBtn" class="seasonal-btn">제철 메뉴 🍂</button>
+                    <button id="fridgeToggleBtn" class="fridge-toggle-btn">냉장고 털기 🧊</button>
+                    <button id="weeklyPlanBtn" class="weekly-btn">일주일 식단 📅</button>
+                </div>
+
+                <div class="fridge-section hidden" id="fridgeSection">
+                    <p>남은 재료를 입력하면 활용하기 좋은 메뉴를 찾아드려요!</p>
+                    <div class="fridge-input-group">
+                        <div class="tags-input-wrapper" id="tagsInputWrapper">
+                            <div id="tagsContainer" class="tags-container"></div>
+                            <div class="input-relative-wrapper">
+                                <input type="text" id="fridgeInput" placeholder="재료 검색 (예: 양파)" autocomplete="off">
+                                <ul id="ingredientSuggestions" class="suggestions-list hidden"></ul>
+                            </div>
+                        </div>
+                        <button id="fridgeBtn" class="fridge-btn">메뉴 찾기</button>
+                    </div>
+                </div>
             </div>
 
+            <!-- Single Result Card -->
             <div class="result-card hidden" id="resultCard">
                 <div class="card-inner">
                     <span class="category-badge" id="resultCategory">한식</span>
                     <h2 class="food-name" id="resultName">김치찌개</h2>
 
                     <div class="food-details">
-                        <div class="detail-item">
-                            <span class="detail-label">제철</span>
-                            <span class="detail-value" id="resultSeason">사계절</span>
-                        </div>
                         <div class="detail-item">
                             <span class="detail-label">주재료</span>
                             <span class="detail-value" id="resultIngredients">김치, 돼지고기, 두부</span>
@@ -47,6 +63,13 @@
                 </div>
             </div>
 
+            <!-- Fridge Result List -->
+            <div class="fridge-result-card hidden" id="fridgeResultCard">
+                <h3>추천 메뉴 (재료 일치순)</h3>
+                <ul class="fridge-list" id="fridgeList">
+                    <!-- JS generated -->
+                </ul>
+            </div>
 
         </main>
     </div>
