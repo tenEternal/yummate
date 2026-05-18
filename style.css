@@ -780,7 +780,9 @@ header p {
     }
 
     .background-animation,
-    .weekly-header-actions {
+    .weekly-header-actions,
+    .meal-select-section,
+    .weekly-footer-nav {
         display: none !important;
     }
 
@@ -803,9 +805,13 @@ header p {
         overflow: visible;
     }
 
-    .weekly-table-wrap,
-    .shopping-list-card {
+    .weekly-table-wrap {
+        width: 100% !important;
         overflow: visible;
+    }
+
+    .shopping-list-card {
+        display: none !important; /* 장보기 목록은 출력 안 함 */
     }
 
     .weekly-table-full,
@@ -818,22 +824,8 @@ header p {
 
     .meal-meta,
     .meal-ingredients,
-    .shopping-list-card p,
     .weekly-subtitle {
         color: #333;
-    }
-
-    .shopping-list-card {
-        width: 100%;
-        margin-top: 1rem;
-        border: 1px solid #999;
-        background: white;
-    }
-
-    #shoppingList li {
-        color: black;
-        border-color: #ccc;
-        background: white;
     }
 }
 
@@ -1111,3 +1103,164 @@ header p {
 .dtb-simple  { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }
 /* 면/만두  — 노랑 계열 */
 .dtb-noodle  { background: rgba(250, 204, 21, 0.2);  color: #fde047; }
+
+/* ── 푸터 영역 (애드센스 필수) ───────────────────────────────── */
+.site-footer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    margin: 4rem auto 0 auto;
+    padding-top: 2rem;
+    width: 100%;
+    max-width: 600px;
+    border-top: 1px solid var(--glass-border);
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    z-index: 1;
+}
+
+.site-footer .footer-links {
+    margin-top: 0.5rem;
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+}
+
+.site-footer a, .weekly-footer-nav a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.2s;
+}
+
+.site-footer a:hover, .weekly-footer-nav a:hover {
+    color: var(--text-main);
+    text-decoration: underline;
+}
+
+.weekly-footer-nav {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding-top: 0.8rem;
+    border-top: 1px solid var(--glass-border);
+    margin: 0.8rem auto 0 auto;
+    width: 100%;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+/* ── 식사 시간 선택 패널 (Premium Toggle Buttons) ──────────────── */
+.meal-select-section {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 1rem 1.5rem;
+    margin-top: 1rem;
+    animation: fadeIn 0.5s ease-out;
+}
+
+.meal-select-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-main);
+    white-space: nowrap;
+}
+
+.meal-checkbox-group {
+    display: flex;
+    gap: 0.6rem;
+}
+
+.meal-checkbox-label {
+    cursor: pointer;
+    position: relative;
+    user-select: none;
+}
+
+/* 기본 체크박스 숨기기 */
+.meal-checkbox-label input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+    height: 0;
+    width: 0;
+}
+
+/* 커스텀 버튼 기본 상태 */
+.checkbox-custom {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    color: var(--text-muted);
+    padding: 0.6rem 1.2rem;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(5px);
+}
+
+/* 호버 시 효과 */
+.meal-checkbox-label:hover .checkbox-custom {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-main);
+    transform: translateY(-1px);
+}
+
+/* 활성화(체크) 되었을 때의 상태 스타일링 (식사별 브랜드 색상 적용) */
+.meal-checkbox-label input[type="checkbox"]:checked + .checkbox-custom {
+    color: white;
+    transform: translateY(0);
+}
+
+/* 아침 활성화: 노란/골드 계열 */
+.meal-checkbox-label:nth-child(1) input[type="checkbox"]:checked + .checkbox-custom {
+    background: linear-gradient(135deg, #eab308, #ca8a04);
+    border-color: #eab308;
+    box-shadow: 0 4px 15px rgba(234, 179, 8, 0.35);
+}
+
+/* 점심 활성화: 파란/하늘 계열 */
+.meal-checkbox-label:nth-child(2) input[type="checkbox"]:checked + .checkbox-custom {
+    background: linear-gradient(135deg, #0ea5e9, #0284c7);
+    border-color: #0ea5e9;
+    box-shadow: 0 4px 15px rgba(14, 165, 233, 0.35);
+}
+
+/* 저녁 활성화: 보라 계열 */
+.meal-checkbox-label:nth-child(3) input[type="checkbox"]:checked + .checkbox-custom {
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+    border-color: #8b5cf6;
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.35);
+}
+
+/* 모바일 반응형 대응 */
+@media (max-width: 768px) {
+    .meal-select-section {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.8rem;
+        padding: 1rem;
+    }
+    .meal-checkbox-group {
+        width: 100%;
+    }
+    .meal-checkbox-label {
+        flex: 1;
+        text-align: center;
+    }
+    .checkbox-custom {
+        width: 100%;
+        text-align: center;
+        padding: 0.6rem 0.5rem;
+    }
+}
